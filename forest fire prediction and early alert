@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+<title>Forest Fire Prediction &amp; Early Alert</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap');
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    margin: 0;
+    font-family: 'Poppins', sans-serif;
+    background: url('https://images.pexels.com/photos/667205/pexels-photo-667205.jpeg?auto=compress&amp;cs=tinysrgb&amp;dpr=2&amp;h=750&amp;w=1260') no-repeat center center fixed;
+    background-size: cover;
+    color: #fff;
+    min-height: 600px;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+  }
+  .container {
+    background: rgba(0,0,0,0.65);
+    border-radius: 15px;
+    padding: 25px 30px;
+    max-width: 360px;
+    width: 100%;
+    box-shadow: 0 0 20px rgba(255,69,0,0.7);
+  }
+  h1 {
+    text-align: center;
+    margin-bottom: 15px;
+    font-weight: 700;
+    font-size: 1.8rem;
+    letter-spacing: 1.4px;
+    color: #ff5722;
+    text-shadow: 1px 1px 5px #d84315;
+  }
+  form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  label {
+    font-weight: 600;
+    font-size: 1rem;
+    margin-bottom: 6px;
+  }
+  input[type="text"] {
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: none;
+    font-size: 1rem;
+    outline: none;
+    transition: box-shadow 0.3s ease;
+  }
+  input[type="text"]:focus {
+    box-shadow: 0 0 8px #ff7043;
+  }
+  button {
+    margin-top: 10px;
+    background: #ff5722;
+    color: white;
+    border: none;
+    font-weight: 700;
+    font-size: 1.1rem;
+    padding: 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.3s ease;
+  }
+  button:hover {
+    background: #e64a19;
+  }
+  .result {
+    margin-top: 20px;
+    text-align: center;
+    font-size: 1.3rem;
+    font-weight: 600;
+    padding: 15px;
+    border-radius: 12px;
+    box-shadow: 0 0 15px #ff7043;
+  }
+  .low-risk {
+    background-color: #388e3c;
+    box-shadow: 0 0 15px #4caf50;
+  }
+  .medium-risk {
+    background-color: #fbc02d;
+    color: #000;
+    box-shadow: 0 0 15px #fdd835;
+  }
+  .high-risk {
+    background-color: #d32f2f;
+    box-shadow: 0 0 20px #f44336;
+  }
+  .info {
+    margin-top: 25px;
+    font-size: 0.85rem;
+    line-height: 1.3;
+    color: #eee;
+    text-align: center;
+  }
+  @media (max-width: 400px) {
+    body {
+      padding: 10px;
+    }
+    .container {
+      max-width: 100%;
+      padding: 20px;
+    }
+  }
+</style>
+</head>
+<body>
+  <div class="container" role="main" aria-label="Forest fire prediction and early alert form">
+    <h1>Forest Fire Prediction</h1>
+    <form id="predictionForm" aria-describedby="alertDescription">
+      <label for="city">Enter City Name:</label>
+      <input type="text" id="city" name="city" placeholder="e.g. Los Angeles" required aria-required="true" aria-label="City name input" autocomplete="off" />
+      <button type="submit" aria-label="Predict forest fire risk based on city">Predict Risk</button>
+    </form>
+    <div id="result" aria-live="polite" aria-atomic="true" class="result" style="display:none;"></div>
+    <div class="info" id="alertDescription">
+      <p><strong>Note:</strong> This system fetches live weather data for your city to predict forest fire risk and automatically alerts the nearest fire station if needed.</p>
+      <p>Stay safe and take precautions during high-risk conditions!</p>
+    </div>
+  </div>
+
+<script>
+  const form = document.getElementById('predictionForm');
+  const resultDiv = document.getElementById('result');
+
+  const fireStations = [
+    { name: "Mountain Valley Fire Station", lat: 34.05, lon: -118.25, email: "mountainvalley@firestation.example.com" },
+    { name: "Lakeside Fire Station", lat: 47.60, lon: -122.33, email: "lakeside@firestation.example.com" },
+    { name: "Riverbend Fire Station", lat: 40.71, lon: -74.01, email: "riverbend@firestation.example.com" },
+    { name: "Pine Ridge Fire Station", lat: 37.77, lon: -122.42, email: "pineridge@firestation.example.com" },
+    { name: "Desert Edge Fire Station", lat: 33.44, lon: -112.07, email: "desertedge@firestation.example.com" }
+  ];
+
+  function degreesToRadians(deg) {
+    return deg * (Math.PI/180);
+  }
+
+  function getDistanceFromLatLonInKm(lat1,lon1,lat2,lon2) {
+    const R = 6371;
+    const dLat = degreesToRadians(lat2-lat1);
+    const dLon = degreesToRadians(lon2-lon1);
+    const a = 
+      Math.sin(dLat/2)*Math.sin(dLat/2) +
+      Math.cos(degreesToRadians(lat1))*Math.cos(degreesToRadians(lat2)) *
+      Math.sin(dLon/2)*Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  }
+
+  function findNearestFireStationEmail(lat, lon) {
+    if(lat === null || lon === null) return null;
+    let nearestStation = null;
+    let minDist = Infinity;
+    for(let station of fireStations) {
+      const dist = getDistanceFromLatLonInKm(lat, lon, station.lat, station.lon);
+      if(dist < minDist) {
+        minDist = dist;
+        nearestStation = station;
+      }
+    }
+    return nearestStation ? nearestStation.email : null;
+  }
+
+  function predictRisk(temp, humidity, wind, drynessLevel=3) {
+    let tempNorm = Math.min(Math.max((temp - 20) / 20, 0), 1);
+    let humidityNorm = 1 - Math.min(Math.max(humidity / 100, 0), 1);
+    let windNorm = Math.min(Math.max(wind / 100, 0), 1);
+    let drynessNorm = (drynessLevel - 1) / 4;
+    let riskScore = (tempNorm * 0.4) + (humidityNorm * 0.3) + (windNorm * 0.2) + (drynessNorm * 0.1);
+    return riskScore;
+  }
+
+  function getRiskCategory(score) {
+    if(score < 0.4) return {level: 'Low Risk', className: 'low-risk', message: 'Forest fire risk is low. Conditions are stable.'};
+    else if(score < 0.7) return {level: 'Medium Risk', className: 'medium-risk', message: 'Moderate risk of forest fire. Stay alert and monitor conditions.'};
+    else return {level: 'High Risk', className: 'high-risk', message: 'HIGH risk of forest fire! Take immediate precautions and notify authorities.'};
+  }
+
+  function constructMailTo(email, city, temp, humidity, wind, dryness, lat, lon) {
+    let subject = encodeURIComponent('URGENT: Forest Fire Risk Alert');
+    let body = `Dear Fire Station,%0D%0A%0D%0AThis is an automated alert generated from the Forest Fire Prediction System.%0D%0A%0D%0APrediction Analysis for city: ${city}%0D%0A- Temperature: ${temp} °C%0D%0A- Humidity: ${humidity} %25%0D%0A- Wind Speed: ${wind} km/h%0D%0A- Dryness Level: ${dryness}%0D%0A%0D%0ALocation Coordinates: ${lat !== null ? lat : 'Unknown'}, ${lon !== null ? lon : 'Unknown'}%0D%0A%0D%0APlease take appropriate measures to prevent or control potential forest fire.%0D%0A%0D%0AThank you,%0D%0AForest Fire Prediction System`;
+    return `mailto:${email}?subject=${subject}&body=${body}`;
+  }
+
+  function openWeatherApp(lat, lon) {
+    let url = '';
+    if(lat !== null && lon !== null) {
+      url = `https://weather.com/weather/today/l/${lat.toFixed(4)},${lon.toFixed(4)}`;
+    } else {
+      url = 'https://weather.com/weather/today/l/37.7749,-122.4194';
+    }
+    window.open(url, '_blank');
+  }
+
+  async function fetchCityCoordinates(city) {
+    const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=3`;
+    let response = await fetch(geoUrl);
+    if(!response.ok) throw new Error('Geocoding API response not ok');
+    let data = await response.json();
+    if(!data.results || data.results.length === 0) throw new Error('City not found. Please check the spelling or try another city.');
+
+    // If multiple results, prefer one with country "US" or select first otherwise
+    let preferred = data.results.find(r => r.country && r.country.toUpperCase() === 'UNITED STATES');
+    if (!preferred) preferred = data.results[0];
+
+    return {lat: preferred.latitude, lon: preferred.longitude, name: preferred.name, country: preferred.country};
+  }
+
+  async function fetchWeatherData(lat, lon) {
+    // Fetch current weather and hourly relative humidity together
+    // Get current time rounded down to nearest hour in ISO string
+    const now = new Date();
+    now.setMinutes(0, 0, 0);
+    const nowISO = now.toISOString();
+
+    const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&hourly=relativehumidity_2m&current_weather=true&timezone=auto`;
+    let response = await fetch(weatherUrl);
+    if(!response.ok) throw new Error('Weather API response not ok');
+    let data = await response.json();
+    if(!data.current_weather) throw new Error('Current weather data not available');
+    if(!data.hourly || !data.hourly.relativehumidity_2m || !data.hourly.time) throw new Error('Humidity data not available');
+    
+    const temp = data.current_weather.temperature;
+    const wind = data.current_weather.windspeed;
+
+    // Find humidity for current hour
+    const times = data.hourly.time; // array of ISO times
+    const humidities = data.hourly.relativehumidity_2m; // array of humidity values
+    let humidity = null;
+
+    for(let i=0; i<times.length; i++) {
+      if(times[i] === nowISO) {
+        humidity = humidities[i];
+        break;
+      }
+    }
+    if(humidity === null) {
+      // fallback to average humidity of available data
+      humidity = humidities.reduce((a,b)=>a+b, 0)/humidities.length;
+    }
+
+    return {temp, wind, humidity};
+  }
+
+  form.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    resultDiv.style.display = 'block';
+    resultDiv.className = 'result';
+    resultDiv.textContent = 'Fetching weather data... Please wait.';
+    const cityInput = form.city.value.trim();
+    if(!cityInput) {
+      resultDiv.className = 'result high-risk';
+      resultDiv.textContent = 'Please enter a city name.';
+      return;
+    }
+    try {
+      const cityInfo = await fetchCityCoordinates(cityInput);
+      const {lat, lon, name, country} = cityInfo;
+      const {temp, wind, humidity} = await fetchWeatherData(lat, lon);
+      const dryness = 3;
+      const riskScore = predictRisk(temp, humidity, wind, dryness);
+      const risk = getRiskCategory(riskScore);
+      let displayCity = name + (country ? ', ' + country : '');
+      resultDiv.className = 'result ' + risk.className;
+      resultDiv.innerHTML = `<strong>${risk.level}</strong><br>${risk.message}<br><small>City: ${displayCity}<br>Temperature: ${temp}&deg;C<br>Humidity: ${humidity.toFixed(0)}%<br>Wind Speed: ${wind} km/h</small>`;
+
+      if(risk.level === 'High Risk') {
+        const fireStationEmail = findNearestFireStationEmail(lat, lon);
+        if(fireStationEmail) {
+          const mailtoLink = constructMailTo(fireStationEmail, displayCity, temp, humidity.toFixed(0), wind, dryness, lat, lon);
+          setTimeout(() => {
+            window.location.href = mailtoLink;
+          }, 1000);
+          setTimeout(() => {
+            openWeatherApp(lat, lon);
+          }, 1300);
+          setTimeout(() => {
+            const alertMsg = document.createElement('p');
+            alertMsg.style.marginTop = '15px';
+            alertMsg.style.fontWeight = '600';
+            alertMsg.textContent = 'Alert email client opened to notify nearest fire station. Weather app opened in new tab.';
+            resultDiv.appendChild(alertMsg);
+          }, 1500);
+        } else {
+          setTimeout(() => {
+            const alertMsg = document.createElement('p');
+            alertMsg.style.marginTop = '15px';
+            alertMsg.style.fontWeight = '600';
+            alertMsg.textContent = 'High risk detected but unable to determine nearest fire station due to missing location.';
+            resultDiv.appendChild(alertMsg);
+          }, 500);
+        }
+      }
+    } catch(err) {
+      resultDiv.className = 'result high-risk';
+      resultDiv.textContent = 'Error: ' + err.message + ' Please check city name and try again.';
+    }
+  });
+</script>
+</body>
+</html>
+
